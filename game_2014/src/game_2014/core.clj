@@ -2,47 +2,34 @@
   (:gen-class))
 
 (defn init_table []
-  (let [table (vec (repeat 4 (vec (repeat 4 0)))),
-        i (rand-int 4),
-        j (rand-int 4)]
-    (assoc table i (assoc (nth table i) j 2))))
+  (let [table (vec (repeat 4 (vec (repeat 4 0))))]
+    (assoc-in table [(rand-int 4) (rand-int 4)] 2)))
 
 (defn shift [col]
-  (loop [result col i 0]
-    (if (>= i (- (count result) 1)) result
-      (let [tmp (nth result i),
-            tmp_n (nth result (inc i)),
-            merge_col #(if (= tmp tmp_n)
-                        (assoc (assoc % i (* tmp 2)) (inc i) 0) %1)] 
-      (recur (merge_col result) (inc i))))))  
+  (if-not(< 1 (count col)) col
+    (let [merge_c #(let [tmp (nth %1 %2)]
+                     (if (= tmp (nth %1 (inc %2)))
+                       (assoc (assoc %1 %2 (* tmp 2)) (inc %2) 0) %1))] 
+      (last (reductions #(merge_c %1 %2) col (range (- (count col) 1)))))))
        
 (defn rot [table n]
-  (loop[result table i 0]
-    (let [to_vec_rev #(vec (reverse %)),
-          rotation #(vec (map to_vec_rev (apply map vector %)))]
-      (if(>= i n)
-        (vec (map vec result))
-        (recur (rotation result)(inc i)))))) 
+  (let [rotation (fn [x](vec (map #(vec (reverse %)) (apply map vector x))))]
+    (nth (iterate rotation table ) n)))
 
 (defn move [table n]
-  (let [rm_zero #(vec (remove zero? %)),
-        zero_fill #(concat %  (repeat (- 4 (count %)) 0)),
-        shift_and_fill_rm_zero #(zero_fill (rm_zero (shift (rm_zero %))))]
-    (rot (map shift_and_fill_rm_zero (rot table n)) (- 4 n))))
+  (let [rm_0 #(vec (remove zero? %)),
+        fill_0 #(take 4 (concat % (repeat 0)))]
+    (rot (map #(fill_0 (rm_0 (shift (rm_0 %)))) (rot table n)) (- 4 n))))
 
-(defn set_random [table]
+(defn set_rnd [table]
   (let [grid_list (for [x (range 0 4) y (range 0 4)] [x y]),
-        check_empty #(zero? (nth (nth table (second %)) (first %))),
-        emp_grid (rand-nth (filter check_empty grid_list)),
-        emp_x (first emp_grid),
-        emp_y (second emp_grid),
-        rand_v (* (+ (rand-int 2) 1) 2)]
-   (assoc table emp_y (assoc (nth table emp_y) emp_x rand_v))))
+        check_empty #(zero? (get-in table [(first %)(second %)])),
+        emp (rand-nth (filter check_empty grid_list))]
+   (assoc-in table [(first emp) (second emp)] (* (+ (rand-int 2) 1) 2))))
 
-(defn update_table [table command]
-  (let [direction #(find (hash-map :Left 0,:Down 1,:Right 2,:Up 3) %)]
-    (if(nil? (direction command)) table
-      (move table (val (direction command))))))
+(defn cmd_dir [cmd]
+  (let [dir_map (find (hash-map :Left 0,:Down 1,:Right 2,:Up 3,:Exit 4) cmd)]
+    (if(nil? dir_map) nil (val dir_map))))
 
 (defn output [table]
   (let [str_table (fn [i] (map #(format "%4d" % ) i))]
@@ -52,12 +39,10 @@
   (def init (init_table))
   (output init)
   (loop[table init]
-     (let [dir (keyword (read-line)),
-           new_table (update_table table dir)]
-      (if (= table new_table)
-        (if(reduce #(and %1 %2) (map #(= table (move table %))(range 0 4)))
-          (do (println "Game Over!!"))
-          (if(not= dir :Exit)(recur table)))
-        (let [next_table (set_random new_table)]
-          (do (output next_table)
-              (recur next_table)))))))
+    (when(reduce #(and %1 %2) (map #(= table (move table %))(range 4)))
+      (do (println "Game Over!!") (System/exit 0)))
+    (let [dir (cmd_dir (keyword (read-line)))]
+      (when (= dir 4)(System/exit 0))
+      (let [moved (if(nil? dir) table(move table dir)),
+            new_table (if(= table moved)table(set_rnd moved))]
+        (when-not(= table moved)(do (output new_table)))(recur new_table)))))
