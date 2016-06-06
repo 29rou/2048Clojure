@@ -33,16 +33,15 @@
 
 (defn output [table]
   (let [str_table (fn [i] (map #(format "%4d" % ) i))]
-    (doseq [ n (map str_table table)] (println (apply str n)))(println)))
+    (doseq [ n (map str_table table)] (println (apply str n)))(println))table)
+
+(defn game [table cmd]
+  (when (reduce #(and %1 %2) (map #(= table (move table %))(range 4)))
+    (do (println "Game Over!")(System/exit 0)))
+  (let [dir (cmd_dir (keyword cmd))]
+    (when (= dir 4)(System/exit 0))
+    (let [moved (if (nil? dir) table (move table dir))]
+      (if-not(= table moved)(output (set_rnd moved))table))))
 
 (defn -main [& args]
-  (def init (init_table))
-  (output init)
-  (loop[table init]
-    (when(reduce #(and %1 %2) (map #(= table (move table %))(range 4)))
-      (do (println "Game Over!!") (System/exit 0)))
-    (let [dir (cmd_dir (keyword (read-line)))]
-      (when (= dir 4)(System/exit 0))
-      (let [moved (if(nil? dir) table(move table dir)),
-            new_table (if(= table moved)table(set_rnd moved))]
-        (when-not(= table moved)(do (output new_table)))(recur new_table)))))
+  (reduce game (output (init_table))(repeatedly read-line)))
