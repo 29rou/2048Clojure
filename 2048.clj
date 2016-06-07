@@ -10,10 +10,10 @@
     (let [merge_c #(let [tmp (nth %1 %2)]
                      (if (= tmp (nth %1 (inc %2)))
                        (assoc (assoc %1 %2 (* tmp 2)) (inc %2) 0) %1))] 
-      (last (reductions #(merge_c %1 %2) col (range (- (count col) 1)))))))
+      (reduce #(merge_c %1 %2) col (range (- (count col) 1))))))
        
 (defn rot [table n]
-  (let [rotation (fn [x](vec (map #(vec (reverse %)) (apply map vector x))))]
+  (let [rotation (fn [x](mapv #(vec (rseq %)) (apply mapv vector x)))]
     (nth (iterate rotation table ) n)))
 
 (defn move [table n]
@@ -22,26 +22,26 @@
     (rot (map #(fill_0 (rm_0 (shift (rm_0 %)))) (rot table n)) (- 4 n))))
 
 (defn set_rnd [table]
-  (let [grid_list (for [x (range 0 4) y (range 0 4)] [x y]),
-        check_empty #(zero? (get-in table [(first %)(second %)])),
-        emp (rand-nth (filter check_empty grid_list))]
+  (let [chk_emp #(zero? (get-in table [(first %)(second %)])),
+        emp (rand-nth (filter chk_emp (for [x (range 4) y (range 4)] [x y])))]
    (assoc-in table [(first emp) (second emp)] (* (+ (rand-int 2) 1) 2))))
 
 (defn cmd_dir [cmd]
-  (let [dir_map (find (hash-map :Left 0,:Down 1,:Right 2,:Up 3,:Exit 4) cmd)]
-    (if(nil? dir_map) nil (val dir_map))))
+  (if-let [dir_map (find (hash-map :Left 0,:Down 1,:Right 2,:Up 3,:Exit 4) cmd)]
+    (val dir_map) nil))
 
 (defn output [table]
   (let [str_table (fn [i] (map #(format "%4d" % ) i))]
     (doseq [ n (map str_table table)] (println (apply str n)))(println))table)
 
 (defn game [table cmd]
-  (when (reduce #(and %1 %2) (map #(= table (move table %))(range 4)))
-    (do (println "Game Over!")(System/exit 0)))
   (let [dir (cmd_dir (keyword cmd))]
-    (when (= dir 4)(System/exit 0))
-    (let [moved (if (nil? dir) table (move table dir))]
-      (if-not(= table moved)(output (set_rnd moved))table))))
+    (cond
+      (every? #(= table (move table %)) (range 4))(System/exit 0)
+      (= dir 4)(System/exit 0)
+      (nil? dir) table
+      (not= table (move table dir)) (output (set_rnd (move table dir)))
+      :else table)))
 
 (defn -main [& args]
   (reduce game (output (init_table))(repeatedly read-line)))
